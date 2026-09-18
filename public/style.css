@@ -1257,6 +1257,12 @@ body.login-page nav .theme-toggle:hover {
   font-weight: 600;
 }
 
+.admin-sub {
+  font-size: 0.8rem;
+  font-weight: 400;
+  color: var(--muted);
+}
+
 @media (max-width: 560px) {
   .member-block {
     grid-template-columns: 1fr;

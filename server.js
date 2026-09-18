@@ -441,16 +441,30 @@ function adminPanelData() {
       lastLoginAt: u.lastLoginAt,
     }));
 
-  return { accounts, leaderboard };
+  const teamMap = new Map();
+  for (const u of users.values()) {
+    if (!u.team) continue;
+    const rec = teamMap.get(u.team) || { team: u.team, players: 0, score: 0, solvedCount: 0 };
+    rec.players += 1;
+    rec.score += u.score;
+    rec.solvedCount += u.solved.length;
+    teamMap.set(u.team, rec);
+  }
+  const teamLeaderboard = [...teamMap.values()]
+    .sort((a, b) => b.score - a.score || b.solvedCount - a.solvedCount || b.players - a.players)
+    .map((t, i) => ({ rank: i + 1, ...t }));
+
+  return { accounts, leaderboard, teamLeaderboard };
 }
 
 app.get("/admin", (req, res) => {
   if (req.session && req.session.isAdmin) {
-    const { accounts, leaderboard } = adminPanelData();
+    const { accounts, leaderboard, teamLeaderboard } = adminPanelData();
     return res.render("admin", {
       authorized: true,
       accounts,
       leaderboard,
+      teamLeaderboard,
       teams,
       totalChallenges: ctf.all.length,
       error: null,
@@ -462,6 +476,7 @@ app.get("/admin", (req, res) => {
     authorized: false,
     accounts: [],
     leaderboard: [],
+    teamLeaderboard: [],
     teams: [],
     totalChallenges: ctf.all.length,
     error: null,
@@ -483,6 +498,7 @@ app.post("/admin", authLimiter, async (req, res) => {
       authorized: false,
       accounts: [],
       leaderboard: [],
+      teamLeaderboard: [],
       teams: [],
       error: "Invalid admin key.",
       success: null,
@@ -501,13 +517,14 @@ function requireAdmin(req, res, next) {
 
 // ── Create event team (admin creates member accounts) ─────────────
 app.post("/admin/teams", adminLimiter, requireAdmin, async (req, res) => {
-  const { accounts, leaderboard } = adminPanelData();
+  const { accounts, leaderboard, teamLeaderboard } = adminPanelData();
 
   const render = (error, success) =>
     res.status(error ? 400 : 200).render("admin", {
       authorized: true,
       accounts,
       leaderboard,
+      teamLeaderboard,
       teams,
       totalChallenges: ctf.all.length,
       error,

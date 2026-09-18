@@ -128,7 +128,39 @@
             <div class="stat"><span class="stat-num"><%= accounts.reduce((s, a) => s + a.score, 0) %></span><span class="stat-label">Total Points</span></div>
           </div>
 
-          <h2 class="admin-section">Leaderboard</h2>
+          <h2 class="admin-section">Team Leaderboard</h2>
+          <% if (teamLeaderboard.length === 0) { %>
+            <p class="info">No teams with scores yet.</p>
+          <% } else { %>
+            <div class="admin-table-wrap">
+              <table class="admin-table leaderboard">
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>Team</th>
+                    <th>Players</th>
+                    <th>Total Points</th>
+                    <th>Total Solved</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <% teamLeaderboard.forEach(function(entry) { %>
+                    <tr>
+                      <td class="rank <%= entry.rank === 1 ? 'gold' : entry.rank === 2 ? 'silver' : entry.rank === 3 ? 'bronze' : '' %>">
+                        <%= entry.rank === 1 ? '🥇' : entry.rank === 2 ? '🥈' : entry.rank === 3 ? '🥉' : entry.rank %>
+                      </td>
+                      <td class="acc-email"><strong><%= entry.team %></strong></td>
+                      <td><%= entry.players %></td>
+                      <td class="pts"><%= entry.score %></td>
+                      <td><%= entry.solvedCount %></td>
+                    </tr>
+                  <% }); %>
+                </tbody>
+              </table>
+            </div>
+          <% } %>
+
+          <h2 class="admin-section">Top Players <span class="admin-sub">(Highest Points)</span></h2>
           <div class="admin-table-wrap">
             <table class="admin-table leaderboard">
               <thead>

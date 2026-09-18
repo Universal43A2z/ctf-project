@@ -86,7 +86,7 @@ ctf-project/
 |------------------|----------------------------------------------------------|
 | URL              | `/admin`                                                 |
 | Access type      | Secret key gate (no username required)                   |
-| Default key      | `ch4ncel0ck@dm1n`                                        |
+| Default key      | *(local dev only — see `ADMIN_KEY` override below)*         |
 | Override (env)   | `ADMIN_KEY=yourkey node server.js`                       |
 | Auth limiter     | max 10 attempts per 15 minutes                           |
 | CSRF protected   | Yes (form token checked)                                 |
@@ -257,6 +257,11 @@ grep -oE "https://[a-z0-9.-]+\.trycloudflare\.com" /tmp/ctf-tunnel.log | tail -1
 
 ## Admin Key (quick reference)
 
+For any shared or public deployment, set a strong key before starting the server:
+
+```bash
+ADMIN_KEY='<your-strong-secret>' node server.js
 ```
-ch4ncel0ck@dm1n
-```
+
+The bundled default key exists only for local development and is intentionally not
+printed here — treat the admin panel as privacy-sensitive and always override it.

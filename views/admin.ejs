@@ -149,7 +149,32 @@
                       <td class="rank <%= entry.rank === 1 ? 'gold' : entry.rank === 2 ? 'silver' : entry.rank === 3 ? 'bronze' : '' %>">
                         <%= entry.rank === 1 ? '🥇' : entry.rank === 2 ? '🥈' : entry.rank === 3 ? '🥉' : entry.rank %>
                       </td>
-                      <td class="acc-email"><strong><%= entry.team %></strong></td>
+                      <td class="acc-email">
+                    <details class="solved-details team-members">
+                      <summary><strong><%= entry.team %></strong></summary>
+                      <ul class="solved-list">
+                        <% entry.members.forEach(function(m) { %>
+                          <li>
+                            <strong><%= m.username %></strong> &mdash; <%= m.score %> pts
+                            <% if (m.solved.length > 0) { %>
+                              <ul class="solved-list">
+                                <% m.solved.forEach(function(s) { %>
+                                  <li>
+                                    <span class="diff-dot diff-<%= s.difficulty %>"></span>
+                                    <%= s.title %>
+                                    <span class="solved-cat">[<%= s.category %>]</span>
+                                    <span class="solved-pts">+<%= s.points %></span>
+                                  </li>
+                                <% }); %>
+                              </ul>
+                            <% } else { %>
+                              <span class="solved-cat">no solves yet</span>
+                            <% } %>
+                          </li>
+                        <% }); %>
+                      </ul>
+                    </details>
+                  </td>
                       <td><%= entry.players %></td>
                       <td class="pts"><%= entry.score %></td>
                       <td><%= entry.solvedCount %></td>

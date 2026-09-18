@@ -444,10 +444,27 @@ function adminPanelData() {
   const teamMap = new Map();
   for (const u of users.values()) {
     if (!u.team) continue;
-    const rec = teamMap.get(u.team) || { team: u.team, players: 0, score: 0, solvedCount: 0 };
+    let rec = teamMap.get(u.team);
+    if (!rec) {
+      rec = { team: u.team, players: 0, score: 0, solvedCount: 0, members: [] };
+    }
     rec.players += 1;
     rec.score += u.score;
     rec.solvedCount += u.solved.length;
+    rec.members.push({
+      username: u.username,
+      score: u.score,
+      solved: u.solved
+        .map((id) => ctf.getById(id))
+        .filter(Boolean)
+        .sort((a, b) => b.id - a.id)
+        .map((c) => ({
+          title: c.title,
+          category: c.category,
+          points: c.points,
+          difficulty: c.difficulty,
+        })),
+    });
     teamMap.set(u.team, rec);
   }
   const teamLeaderboard = [...teamMap.values()]

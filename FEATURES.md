@@ -20,7 +20,7 @@ All features of the Cyber CTF platform, grouped by area.
 |---|---------|---------|
 | 8 | CSRF protection | Per-session token, checked on every POST (all forms, incl. logout/admin) |
 | 9 | Account lockout | 5 failed logins → locked 15 minutes |
-| 10 | Auth rate limiting | 10 requests / 15 min (login, register, admin key) |
+| 10 | Auth rate limiting | 10 requests / 15 min (login, admin key) |
 | 11 | Global rate limiting | 100 requests / 15 min per IP |
 | 12 | Security headers | Helmet: CSP, HSTS, X-Frame-Options, etc. |
 | 13 | Timing-safe flag compare | `crypto.timingSafeEqual` for flags & admin key |
@@ -46,7 +46,7 @@ All features of the Cyber CTF platform, grouped by area.
 |---|---------|---------|
 | 24 | Secret key gate | `/admin` unlock via timing-safe key, own session persistence, rate-limited |
 | 25 | Leaderboard | Ranked players (gold/silver/bronze), points, solved count, last login |
-| 26 | Accounts table | Email, year level, registered/last-login dates, score, solved problems (expandable) |
+| 26 | Accounts table | Username, team, year level, registered/last-login dates, score, solved problems (expandable) |
 | 27 | Exit admin | Session-scoped admin flag, CSRF-protected |
 
 ## Content (challenge categories covered)

@@ -16,9 +16,9 @@
         <a href="/ctf" class="btn btn-small btn-ctf">Play CTF</a>
       </div>
 
-      <p class="welcome">Welcome back, <strong><%= email %></strong>!</p>
+      <p class="welcome">Welcome back, <strong><%= username %></strong>!</p>
       <p class="info dash-profile">
-        Year Level: <%= yearLevel %> &middot; Member since <%= memberSince ? new Date(memberSince).toLocaleDateString() : '—' %> &middot; Last login <%= lastLoginAt ? new Date(lastLoginAt).toLocaleString() : '—' %>
+        <% if (team) { %>Team: <%= team %> &middot; <% } %>Year Level: <%= yearLevel %> &middot; Member since <%= memberSince ? new Date(memberSince).toLocaleDateString() : '—' %> &middot; Last login <%= lastLoginAt ? new Date(lastLoginAt).toLocaleString() : '—' %>
       </p>
 
       <div class="ctf-stats">

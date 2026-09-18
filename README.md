@@ -1,7 +1,9 @@
 # Cyber CTF Project
 
-Full-stack Capture The Flag platform built with Node.js + Express + EJS.
-Features secure login/register, 58 challenges across 6 categories, downloadable files, and an admin panel.
+Full-stack **Capture The Flag event game** built with Node.js + Express + EJS.
+Secure login (username + password), 58 challenges across 6 categories, downloadable files,
+and an admin panel that manages event teams. There is **no public registration** — the admin
+creates teams and issues each participant's username + password.
 
 ---
 
@@ -45,7 +47,7 @@ npx -y cloudflared tunnel --url http://localhost:3000
 
 ```
 ctf-project/
-├── server.js              ← main app: routes, middleware, auth, admin
+├── server.js              ← main app: routes, middleware, auth, admin, teams
 ├── ctf-challenges.js      ← 58 challenge definitions + categories
 ├── challenge-files/       ← downloadable files for file-based challenges
 │   ├── c54.zip
@@ -54,14 +56,14 @@ ctf-project/
 │   ├── c57.bin
 │   └── c58.log
 ├── views/
-│   ├── login.ejs
-│   ├── register.ejs
+│   ├── login.ejs          ← username + password login (no public registration)
 │   ├── dashboard.ejs
 │   ├── ctf.ejs            ← challenge board with category filters
 │   ├── challenge.ejs      ← individual challenge detail + submit form
-│   └── admin.ejs          ← leaderboard + accounts table
+│   └── admin.ejs          ← leaderboard + accounts + team management
 ├── public/
-│   └── style.css          ← dark-theme UI
+│   ├── style.css          ← dark-theme UI
+│   └── admin.js           ← dynamic team-member fields
 ├── package.json
 └── package-lock.json
 ```
@@ -90,6 +92,18 @@ ctf-project/
 | CSRF protected   | Yes (form token checked)                                 |
 | Session required | No (public, but has its own session to persist unlock)   |
 
+## Event Teams & Accounts
+
+There is no public sign-up. The admin creates teams from the admin panel:
+
+1. Enter a **Team Name** (and optional year level).
+2. Set the **Number of Members** — the form reveals that many member blocks.
+3. For each member, provide a **Username** and **Password** (min 4 chars).
+4. Submit — the system creates one login account per member (bcrypt-hashed) and a team record.
+
+Members log in on the login page with their issued **username + password**. Team membership
+and ledger data are shown on the admin panel (Teams table, leaderboard, accounts).
+
 ---
 
 ## Login Security Features
@@ -98,10 +112,11 @@ ctf-project/
 |-------------------------------|-----------------------------------------------------------|
 | Password hashing              | bcrypt, 12 salt rounds                                    |
 | Account lockout               | 5 failed logins → locked 15 minutes                       |
-| Rate limiting (auth)          | max 10 requests / 15 min (login, register, admin)         |
+| Rate limiting (auth)          | max 10 requests / 15 min (login, admin key)               |
 | Rate limiting (global)        | max 100 requests / 15 min                                 |
+| Rate limiting (admin)         | max 60 requests / 15 min (team/account creation)          |
 | CSRF tokens                   | per-session, checked on every POST                        |
-| Login errors                  | generic "Invalid email or password" (no user enumeration) |
+| Login errors                  | generic "Invalid username or password" (no user enumeration) |
 | Flag submissions              | timing-safe comparison (no timing leaks)                  |
 | Session                       | random secret per boot; in-memory only (no persistence)   |
 
@@ -178,9 +193,7 @@ const CATEGORIES = [
 | Method | Path                   | Auth     | Description                        |
 |--------|------------------------|----------|------------------------------------|
 | GET    | `/`                    | —        | redirects to `/login`              |
-| GET    | `/register`            | no       | registration form                  |
-| POST   | `/register`            | no       | create account                     |
-| GET    | `/login`               | no       | login form                         |
+| GET    | `/login`               | no       | login form (username + password)   |
 | POST   | `/login`               | no       | authenticate                       |
 | GET    | `/dashboard`           | yes      | user dashboard (score + progress)  |
 | POST   | `/dashboard`           | yes      | logout                             |
@@ -190,7 +203,8 @@ const CATEGORIES = [
 | GET    | `/ctf/:id/download`    | yes      | download challenge file            |
 | GET    | `/admin`               | no*      | admin key gate page                |
 | POST   | `/admin`               | no*      | submit admin key                   |
-| GET    | `/admin` (authorized)  | session  | leaderboard + accounts table       |
+| GET    | `/admin` (authorized)  | session  | teams, leaderboard + accounts table |
+| POST   | `/admin/teams`         | session  | create event team + member accounts |
 | POST   | `/admin/logout`        | session  | lock admin panel                   |
 
 ---
@@ -199,12 +213,14 @@ const CATEGORIES = [
 
 | What           | Storage                  | Details                                      |
 |----------------|--------------------------|----------------------------------------------|
-| Accounts       | `data.json` (JSON file)  | Email, bcrypt hash, scores, solved list       |
+| Accounts       | `data.json` (JSON file)  | Username, bcrypt hash, team, scores, solved list |
+| Teams          | `data.json` (JSON file)  | Team name, year level, member usernames, created date |
 | Passwords      | bcrypt (`$2b$...` hashes)| Never stored in plaintext                     |
 | Sessions       | express-session in-memory| Lost on restart (users stay; just re-login)   |
 | Rate limits    | in-memory per-IP counters| Reset on restart                              |
 
-Accounts and scores persist across restarts and tunnel URL changes.
+`data.json` uses schema `{"version": 2, "users": [...], "teams": [...]}`.
+Accounts and teams persist across restarts and tunnel URL changes.
 Sessions are ephemeral — a new URL means the browser has no session cookie,
 so the user simply logs in again and finds all their accounts/scores intact.
 

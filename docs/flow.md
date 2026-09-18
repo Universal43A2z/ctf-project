@@ -21,10 +21,7 @@ request
 ```
 GET  /                  → redirect → /login
 GET  /login             → renders login.ejs (hero landing + login card)
-POST /login             → validate credentials → set session → /dashboard
-GET  /register          → renders register.ejs
-POST /register          → validate inputs (incl. year level) →
-                          hash password (bcrypt) → save user → /login
+POST /login             → validate username+password → set session → /dashboard
 GET  /dashboard         → requireAuth → dashboard.ejs (stats, mission, recent solves)
 POST /logout            → requireAuth + CSRF → destroy session → /login
 GET  /ctf               → requireAuth → ctf.ejs (challenge grid grouped by difficulty)
@@ -33,6 +30,7 @@ POST /ctf/:id           → requireAuth + CSRF → submit flag (see below)
 GET  /ctf/:id/download  → requireAuth → res.download(challenge-files/cN.ext)
 GET  /admin             → admin login page (ADMIN_KEY, env override)
 POST /admin             → authLimiter + CSRF → validate admin key → admin session
+POST /admin/teams       → admin session + CSRF → create team + member accounts (bcrypt)
 POST /admin/logout      → CSRF → clear admin session → /admin
 (app.use catch-all)     → 404
 ```
@@ -53,7 +51,7 @@ submit flag (form field "flag")
 
 ## Data → view
 
-- `data.json` → users (email, bcrypt hash, year level, solved[], score, admin flag…)
+- `data.json` → users (username, bcrypt hash, team, year level, solved[], score) and `teams[]`
 - `ctf-challenges.js` → `easy/medium/hard/all`, `getById(id)`, points totals
 - **Flags never reach the browser.** `challenge.ejs` renders title, description, ciphertext, hint, and file — never `challenge.flag`. No route returns challenge objects as JSON.
 - Dashboard reads solves/points by mapping `user.solved` through `ctf.getById()`.

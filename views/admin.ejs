@@ -6,6 +6,7 @@
   <title>F1 StackMind — Admin</title>
   <link rel="stylesheet" href="/style.css">
   <script src="/theme.js"></script>
+  <script src="/admin.js" defer></script>
 </head>
 <body>
   <button id="themeToggle" class="theme-toggle" aria-label="Toggle theme"></button>
@@ -28,7 +29,7 @@
         <% if (error) { %>
           <div class="alert error"><%= error %></div>
         <% } %>
-        <p class="info">This area is restricted. Enter the admin access key to view registered accounts.</p>
+        <p class="info">This area is restricted. Enter the admin access key to manage teams and accounts.</p>
         <form method="POST" action="/admin" autocomplete="off">
           <input type="hidden" name="_csrf" value="<%= csrfToken %>">
           <div class="field">
@@ -38,6 +39,86 @@
           <button type="submit" class="btn">Unlock</button>
         </form>
       <% } else { %>
+        <% if (success) { %>
+          <div class="alert success"><%= success %></div>
+        <% } %>
+        <% if (error) { %>
+          <div class="alert error"><%= error %></div>
+        <% } %>
+        <% if (error && success) { %>
+          <div class="alert success"><%= success %></div>
+        <% } %>
+
+        <h2 class="admin-section">Create Event Team</h2>
+        <form method="POST" action="/admin/teams" autocomplete="off" id="teamForm">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+          <div class="team-form-grid">
+            <div class="field">
+              <label for="teamName">Team Name</label>
+              <input type="text" id="teamName" name="teamName" required maxlength="60" placeholder="e.g. Blue Hats" autofocus>
+            </div>
+
+            <div class="field">
+              <label for="teamYear">Year Level</label>
+              <select id="teamYear" name="yearLevel">
+                <option value="" selected>— Not set —</option>
+                <option value="1st Year">1st Year</option>
+                <option value="2nd Year">2nd Year</option>
+                <option value="3rd Year">3rd Year</option>
+                <option value="4th Year">4th Year</option>
+              </select>
+            </div>
+
+            <div class="field">
+              <label for="memberCount">Number of Members</label>
+              <input type="number" id="memberCount" name="memberCount" min="1" max="20" value="1" required placeholder="e.g. 4">
+            </div>
+          </div>
+
+          <p class="info team-hint">Provide a username and password for each participant account. Members log in with these credentials.</p>
+
+          <div id="membersList"></div>
+
+          <button type="submit" class="btn">Create Team</button>
+        </form>
+
+        <% if (teams.length > 0) { %>
+          <h2 class="admin-section">Teams (<%= teams.length %>)</h2>
+          <div class="admin-table-wrap">
+            <table class="admin-table">
+              <thead>
+                <tr>
+                  <th>Team</th>
+                  <th>Year</th>
+                  <th>Members</th>
+                  <th>Created</th>
+                </tr>
+              </thead>
+              <tbody>
+                <% teams.slice().sort((a, b) => b.createdAt - a.createdAt).forEach(function(t) { %>
+                  <tr>
+                    <td class="acc-email"><strong><%= t.name %></strong></td>
+                    <td><%= t.yearLevel %></td>
+                    <td>
+                      <%= t.memberCount %> members
+                      <details class="solved-details">
+                        <summary>View members</summary>
+                        <ul class="solved-list">
+                          <% t.members.forEach(function(m) { %>
+                            <li><%= m.username %></li>
+                          <% }); %>
+                        </ul>
+                      </details>
+                    </td>
+                    <td><%= new Date(t.createdAt).toLocaleString() %></td>
+                  </tr>
+                <% }); %>
+              </tbody>
+            </table>
+          </div>
+        <% } %>
+
         <% if (accounts.length === 0) { %>
           <p class="info">No accounts registered yet.</p>
         <% } else { %>
@@ -65,7 +146,7 @@
                     <td class="rank <%= entry.rank === 1 ? 'gold' : entry.rank === 2 ? 'silver' : entry.rank === 3 ? 'bronze' : '' %>">
                       <%= entry.rank === 1 ? '🥇' : entry.rank === 2 ? '🥈' : entry.rank === 3 ? '🥉' : entry.rank %>
                     </td>
-                    <td class="acc-email"><%= entry.email %></td>
+                    <td class="acc-email"><%= entry.username %><% if (entry.team !== '—') { %> <span class="team-tag"><%= entry.team %></span><% } %></td>
                     <td class="pts"><%= entry.score %></td>
                     <td><%= entry.solvedCount %>/<%= totalChallenges %></td>
                     <td><%= entry.lastLoginAt ? new Date(entry.lastLoginAt).toLocaleString() : '—' %></td>
@@ -80,7 +161,8 @@
             <table class="admin-table">
               <thead>
                 <tr>
-                  <th>Email</th>
+                  <th>Username</th>
+                  <th>Team</th>
                   <th>Year</th>
                   <th>Registered</th>
                   <th>Last Login</th>
@@ -91,7 +173,8 @@
               <tbody>
                 <% accounts.forEach(function(acc) { %>
                   <tr class="acc-row">
-                    <td class="acc-email"><%= acc.email %></td>
+                    <td class="acc-email"><%= acc.username %></td>
+                    <td class="acc-team"><%= acc.team %></td>
                     <td><%= acc.yearLevel %></td>
                     <td><%= new Date(acc.createdAt).toLocaleString() %></td>
                     <td><%= acc.lastLoginAt ? new Date(acc.lastLoginAt).toLocaleString() : '—' %></td>

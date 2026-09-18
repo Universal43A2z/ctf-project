@@ -16,23 +16,26 @@ const SALT_ROUNDS = 12;
 // Admin access key (override with ADMIN_KEY env var in production)
 const ADMIN_KEY = process.env.ADMIN_KEY || "ch4ncel0ck@dm1n";
 
-// ── Persistent user store ─────────────────────────────────────────
-// Accounts are saved to data.json so they survive restarts and tunnel
-// URL changes. Passwords are stored ONLY as bcrypt hashes.
+// ── Persistent store ──────────────────────────────────────────────
+// Accounts and teams are saved to data.json so they survive restarts
+// and tunnel URL changes. Passwords are stored ONLY as bcrypt hashes.
 const DATA_FILE = path.join(__dirname, "data.json");
 const users = new Map();
+let teams = [];
 
-function loadUsers() {
+function loadData() {
   try {
     if (!fs.existsSync(DATA_FILE)) return;
     const parsed = JSON.parse(fs.readFileSync(DATA_FILE, "utf8"));
     if (!parsed || !Array.isArray(parsed.users)) return;
     parsed.users.forEach((u) => {
-      if (u && u.email && typeof u.password === "string") {
-        users.set(u.email, {
-          email: u.email,
+      if (u && (u.username || u.email) && typeof u.password === "string") {
+        const username = u.username || u.email; // legacy accounts predate "username"
+        users.set(username, {
+          username,
           password: u.password, // already a bcrypt hash ($2b$...), never plaintext
-          yearLevel: u.yearLevel || "—", // legacy accounts predate the field
+          team: u.team || null,
+          yearLevel: u.yearLevel || "—",
           createdAt: u.createdAt || Date.now(),
           lastLoginAt: u.lastLoginAt ?? null,
           solved: Array.isArray(u.solved) ? u.solved : [],
@@ -40,18 +43,19 @@ function loadUsers() {
         });
       }
     });
-    console.log(`Loaded ${users.size} persisted account(s)`);
+    teams = Array.isArray(parsed.teams) ? parsed.teams : [];
+    console.log(`Loaded ${users.size} account(s) and ${teams.length} team(s)`);
   } catch (err) {
     console.error("Failed to load data.json:", err.message);
   }
 }
 
-function saveUsers() {
+function saveData() {
   try {
     const tmp = DATA_FILE + ".tmp";
     fs.writeFileSync(
       tmp,
-      JSON.stringify({ version: 1, users: [...users.values()] }, null, 2)
+      JSON.stringify({ version: 2, users: [...users.values()], teams }, null, 2)
     );
     fs.renameSync(tmp, DATA_FILE);
   } catch (err) {
@@ -59,7 +63,7 @@ function saveUsers() {
   }
 }
 
-loadUsers();
+loadData();
 
 // ── Account lockout tracking ──────────────────────────────────────
 const failedAttempts = new Map();
@@ -149,6 +153,15 @@ const authLimiter = rateLimit({
   message: "Too many authentication attempts, please try again later.",
 });
 
+// More lenient limiter for admin team/account management (bulk creation)
+const adminLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: "Too many admin requests, please try again later.",
+});
+
 // Session
 app.use(
   session({
@@ -178,68 +191,6 @@ function requireAuth(req, res, next) {
 // ── Routes ────────────────────────────────────────────────────────
 app.get("/", (req, res) => res.redirect("/login"));
 
-// ── Register ──────────────────────────────────────────────────────
-app.get("/register", (req, res) => {
-  res.render("register", { errors: [], csrfToken: res.locals.csrfToken });
-});
-
-app.post(
-  "/register",
-  authLimiter,
-  [
-    body("email")
-      .trim()
-      .isEmail()
-      .normalizeEmail()
-      .withMessage("Valid email required"),
-    body("password")
-      .isLength({ min: 8 })
-      .withMessage("Password must be at least 8 characters")
-      .matches(/[A-Z]/)
-      .withMessage("Password must contain an uppercase letter")
-      .matches(/[a-z]/)
-      .withMessage("Password must contain a lowercase letter")
-      .matches(/[0-9]/)
-      .withMessage("Password must contain a number")
-      .matches(/[!@#$%^&*(),.?":{}|<>]/)
-      .withMessage("Password must contain a special character"),
-    body("yearLevel")
-      .isIn(["1st Year", "2nd Year", "3rd Year", "4th Year"])
-      .withMessage("Select your year level"),
-  ],
-  async (req, res) => {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).render("register", {
-        errors: errors.array(),
-        csrfToken: res.locals.csrfToken,
-      });
-    }
-
-    const { email, password, yearLevel } = req.body;
-    if (users.has(email)) {
-      return res.status(400).render("register", {
-        errors: [{ msg: "Email already registered" }],
-        csrfToken: res.locals.csrfToken,
-      });
-    }
-
-    const hash = await bcrypt.hash(password, SALT_ROUNDS);
-    users.set(email, {
-      email,
-      password: hash,
-      yearLevel,
-      createdAt: Date.now(),
-      lastLoginAt: null,
-      solved: [],
-      score: 0,
-    });
-    saveUsers();
-
-    res.redirect("/login");
-  }
-);
-
 // ── Login ─────────────────────────────────────────────────────────
 app.get("/login", (req, res) => {
   res.render("login", { error: null, csrfToken: res.locals.csrfToken });
@@ -249,7 +200,7 @@ app.post(
   "/login",
   authLimiter,
   [
-    body("email").trim().isEmail().normalizeEmail(),
+    body("username").trim().notEmpty(),
     body("password").notEmpty(),
   ],
   async (req, res) => {
@@ -261,21 +212,22 @@ app.post(
       });
     }
 
-    const { email, password } = req.body;
+    const username = String(req.body.username || "").trim();
+    const password = req.body.password;
 
     // Generic error message — never reveal if user exists
-    if (isLockedOut(email)) {
+    if (isLockedOut(username)) {
       return res.status(429).render("login", {
         error: "Account temporarily locked. Try again later.",
         csrfToken: res.locals.csrfToken,
       });
     }
 
-    const user = users.get(email);
+    const user = users.get(username);
     if (!user) {
       // Perform dummy hash to prevent user-enumeration timing attacks
       await bcrypt.hash("dummy", SALT_ROUNDS);
-      recordFailedAttempt(email);
+      recordFailedAttempt(username);
       return res.status(401).render("login", {
         error: "Invalid credentials",
         csrfToken: res.locals.csrfToken,
@@ -284,7 +236,7 @@ app.post(
 
     const match = await bcrypt.compare(password, user.password);
     if (!match) {
-      recordFailedAttempt(email);
+      recordFailedAttempt(username);
       return res.status(401).render("login", {
         error: "Invalid credentials",
         csrfToken: res.locals.csrfToken,
@@ -292,12 +244,12 @@ app.post(
     }
 
     // Success
-    clearFailedAttempts(email);
+    clearFailedAttempts(username);
     user.lastLoginAt = Date.now();
-    saveUsers();
+    saveData();
     req.session.regenerate((err) => {
       if (err) return res.status(500).send("Session error");
-      req.session.userId = user.email;
+      req.session.userId = user.username;
       req.session.createdAt = Date.now();
       res.redirect("/dashboard");
     });
@@ -315,7 +267,8 @@ app.get("/dashboard", requireAuth, (req, res) => {
     .sort((a, b) => b.id - a.id)
     .slice(0, 5);
   res.render("dashboard", {
-    email: req.session.userId,
+    username: req.session.userId,
+    team: user.team,
     yearLevel: user.yearLevel,
     memberSince: user.createdAt,
     lastLoginAt: user.lastLoginAt,
@@ -424,7 +377,7 @@ app.post("/ctf/:id", requireAuth, [body("flag").trim()], async (req, res) => {
   if (matched && !alreadySolved) {
     user.solved.push(challenge.id);
     user.score += challenge.points;
-    saveUsers();
+    saveData();
     return res.render("challenge", {
       challenge,
       solved: true,
@@ -451,44 +404,57 @@ app.post("/ctf/:id", requireAuth, [body("flag").trim()], async (req, res) => {
 });
 
 // ── Admin (secret key gate) ───────────────────────────────────────
+const YEAR_LEVELS = ["1st Year", "2nd Year", "3rd Year", "4th Year"];
+const USERNAME_RE = /^[A-Za-z0-9_.\- ]+$/;
+const MAX_TEAM_MEMBERS = 20;
+
+function adminPanelData() {
+  const accounts = [...users.values()]
+    .sort((a, b) => a.createdAt - b.createdAt)
+    .map((u) => ({
+      username: u.username,
+      team: u.team || "—",
+      yearLevel: u.yearLevel || "—",
+      createdAt: u.createdAt,
+      lastLoginAt: u.lastLoginAt,
+      score: u.score,
+      solvedCount: u.solved.length,
+      solved: u.solved
+        .map((id) => ctf.getById(id))
+        .filter(Boolean)
+        .map((c) => ({
+          title: c.title,
+          category: c.category,
+          points: c.points,
+          difficulty: c.difficulty,
+        })),
+    }));
+
+  const leaderboard = [...users.values()]
+    .sort((a, b) => b.score - a.score || a.createdAt - b.createdAt)
+    .map((u, i) => ({
+      rank: i + 1,
+      username: u.username,
+      team: u.team || "—",
+      score: u.score,
+      solvedCount: u.solved.length,
+      lastLoginAt: u.lastLoginAt,
+    }));
+
+  return { accounts, leaderboard };
+}
+
 app.get("/admin", (req, res) => {
   if (req.session && req.session.isAdmin) {
-    const accounts = [...users.values()]
-      .sort((a, b) => a.createdAt - b.createdAt)
-      .map((u) => ({
-        email: u.email,
-        yearLevel: u.yearLevel || "—",
-        createdAt: u.createdAt,
-        lastLoginAt: u.lastLoginAt,
-        score: u.score,
-        solvedCount: u.solved.length,
-        solved: u.solved
-          .map((id) => ctf.getById(id))
-          .filter(Boolean)
-          .map((c) => ({
-            title: c.title,
-            category: c.category,
-            points: c.points,
-            difficulty: c.difficulty,
-          })),
-      }));
-
-    const leaderboard = [...users.values()]
-      .sort((a, b) => b.score - a.score || a.createdAt - b.createdAt)
-      .map((u, i) => ({
-        rank: i + 1,
-        email: u.email,
-        score: u.score,
-        solvedCount: u.solved.length,
-        lastLoginAt: u.lastLoginAt,
-      }));
-
+    const { accounts, leaderboard } = adminPanelData();
     return res.render("admin", {
       authorized: true,
       accounts,
       leaderboard,
+      teams,
       totalChallenges: ctf.all.length,
       error: null,
+      success: null,
       csrfToken: res.locals.csrfToken,
     });
   }
@@ -496,8 +462,10 @@ app.get("/admin", (req, res) => {
     authorized: false,
     accounts: [],
     leaderboard: [],
+    teams: [],
     totalChallenges: ctf.all.length,
     error: null,
+    success: null,
     csrfToken: res.locals.csrfToken,
   });
 });
@@ -514,13 +482,109 @@ app.post("/admin", authLimiter, async (req, res) => {
     return res.status(401).render("admin", {
       authorized: false,
       accounts: [],
+      leaderboard: [],
+      teams: [],
       error: "Invalid admin key.",
+      success: null,
       csrfToken: res.locals.csrfToken,
     });
   }
 
   req.session.isAdmin = true;
   res.redirect("/admin");
+});
+
+function requireAdmin(req, res, next) {
+  if (req.session && req.session.isAdmin) return next();
+  res.status(403).redirect("/admin");
+}
+
+// ── Create event team (admin creates member accounts) ─────────────
+app.post("/admin/teams", adminLimiter, requireAdmin, async (req, res) => {
+  const { accounts, leaderboard } = adminPanelData();
+
+  const render = (error, success) =>
+    res.status(error ? 400 : 200).render("admin", {
+      authorized: true,
+      accounts,
+      leaderboard,
+      teams,
+      totalChallenges: ctf.all.length,
+      error,
+      success,
+      csrfToken: res.locals.csrfToken,
+    });
+
+  const teamName = String(req.body.teamName || "").trim();
+  const yearLevel = YEAR_LEVELS.includes(req.body.yearLevel)
+    ? req.body.yearLevel
+    : "—";
+  const memberCount = Number.parseInt(req.body.memberCount, 10);
+  const rawUsernames = []
+    .concat(req.body.memberUsername || [])
+    .map((v) => String(v || "").trim());
+  const rawPasswords = []
+    .concat(req.body.memberPassword || [])
+    .map((v) => String(v || ""));
+
+  const errors = [];
+
+  if (!teamName) errors.push("Team name is required.");
+  else if (teamName.length > 60) errors.push("Team name is too long (max 60 chars).");
+  if (!Number.isInteger(memberCount) || memberCount < 1 || memberCount > MAX_TEAM_MEMBERS) {
+    errors.push(`Member count must be between 1 and ${MAX_TEAM_MEMBERS}.`);
+  }
+  if (rawUsernames.length !== memberCount || rawPasswords.length !== memberCount) {
+    errors.push("Member count does not match the submitted member fields.");
+  }
+
+  const usernames = rawUsernames;
+  const seen = new Set();
+  for (let i = 0; i < memberCount; i++) {
+    const uname = usernames[i] || "";
+    if (!uname) {
+      errors.push(`Member ${i + 1}: username is required.`);
+    } else if (!USERNAME_RE.test(uname) || uname.length < 2 || uname.length > 30) {
+      errors.push(`Member ${i + 1}: username must be 2–30 chars of letters, numbers, spaces, '.', '_', '-'.`);
+    } else if (seen.has(uname.toLowerCase())) {
+      errors.push(`Member ${i + 1}: username "${uname}" is a duplicate in this form.`);
+    } else if (users.has(uname)) {
+      errors.push(`Username "${uname}" already exists.`);
+    }
+    const pw = rawPasswords[i] || "";
+    if (!pw) errors.push(`Member ${i + 1}: password is required.`);
+    else if (pw.length < 4) errors.push(`Member ${i + 1}: password must be at least 4 characters.`);
+    else if (pw.length > 64) errors.push(`Member ${i + 1}: password is too long (max 64).`);
+    seen.add(uname.toLowerCase());
+  }
+
+  if (errors.length > 0) return render(errors.join(" "), null);
+
+  for (let i = 0; i < memberCount; i++) {
+    const hash = await bcrypt.hash(rawPasswords[i], SALT_ROUNDS);
+    users.set(usernames[i], {
+      username: usernames[i],
+      password: hash,
+      team: teamName,
+      yearLevel,
+      createdAt: Date.now(),
+      lastLoginAt: null,
+      solved: [],
+      score: 0,
+    });
+  }
+
+  teams.push({
+    id: crypto.randomUUID(),
+    name: teamName,
+    yearLevel,
+    memberCount,
+    members: usernames.map((u) => ({ username: u, createdAt: Date.now() })),
+    createdAt: Date.now(),
+  });
+  saveData();
+
+  return render(null, `Team "${teamName}" created with ${memberCount} member account(s).`);
 });
 
 app.post("/admin/logout", (req, res) => {

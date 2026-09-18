@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>F1 StackMind — Admin</title>
+  <link rel="stylesheet" href="/style.css">
+  <script src="/theme.js"></script>
+</head>
+<body>
+  <button id="themeToggle" class="theme-toggle" aria-label="Toggle theme"></button>
+  <div class="container container-wide">
+    <div class="card">
+      <div class="ctf-header">
+        <h1>Admin Panel</h1>
+        <div>
+          <% if (authorized) { %>
+            <a href="/ctf" class="btn btn-small">CTF Board</a>
+            <form method="POST" action="/admin/logout" style="display:inline">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+              <button type="submit" class="btn btn-small btn-danger">Exit Admin</button>
+            </form>
+          <% } %>
+        </div>
+      </div>
+
+      <% if (!authorized) { %>
+        <% if (error) { %>
+          <div class="alert error"><%= error %></div>
+        <% } %>
+        <p class="info">This area is restricted. Enter the admin access key to view registered accounts.</p>
+        <form method="POST" action="/admin" autocomplete="off">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <div class="field">
+            <label for="key">Admin Access Key</label>
+            <input type="password" id="key" name="key" required autocomplete="off" autofocus>
+          </div>
+          <button type="submit" class="btn">Unlock</button>
+        </form>
+      <% } else { %>
+        <% if (accounts.length === 0) { %>
+          <p class="info">No accounts registered yet.</p>
+        <% } else { %>
+          <div class="ctf-stats">
+            <div class="stat"><span class="stat-num"><%= accounts.length %></span><span class="stat-label">Accounts</span></div>
+            <div class="stat"><span class="stat-num"><%= accounts.filter(a => a.solvedCount > 0).length %></span><span class="stat-label">Active Solvers</span></div>
+            <div class="stat"><span class="stat-num"><%= accounts.reduce((s, a) => s + a.score, 0) %></span><span class="stat-label">Total Points</span></div>
+          </div>
+
+          <h2 class="admin-section">Leaderboard</h2>
+          <div class="admin-table-wrap">
+            <table class="admin-table leaderboard">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Player</th>
+                  <th>Points</th>
+                  <th>Solved</th>
+                  <th>Last Login</th>
+                </tr>
+              </thead>
+              <tbody>
+                <% leaderboard.forEach(function(entry) { %>
+                  <tr>
+                    <td class="rank <%= entry.rank === 1 ? 'gold' : entry.rank === 2 ? 'silver' : entry.rank === 3 ? 'bronze' : '' %>">
+                      <%= entry.rank === 1 ? '🥇' : entry.rank === 2 ? '🥈' : entry.rank === 3 ? '🥉' : entry.rank %>
+                    </td>
+                    <td class="acc-email"><%= entry.email %></td>
+                    <td class="pts"><%= entry.score %></td>
+                    <td><%= entry.solvedCount %>/<%= totalChallenges %></td>
+                    <td><%= entry.lastLoginAt ? new Date(entry.lastLoginAt).toLocaleString() : '—' %></td>
+                  </tr>
+                <% }); %>
+              </tbody>
+            </table>
+          </div>
+
+          <h2 class="admin-section">Accounts</h2>
+          <div class="admin-table-wrap">
+            <table class="admin-table">
+              <thead>
+                <tr>
+                  <th>Email</th>
+                  <th>Year</th>
+                  <th>Registered</th>
+                  <th>Last Login</th>
+                  <th>Score</th>
+                  <th>Solved Problems</th>
+                </tr>
+              </thead>
+              <tbody>
+                <% accounts.forEach(function(acc) { %>
+                  <tr class="acc-row">
+                    <td class="acc-email"><%= acc.email %></td>
+                    <td><%= acc.yearLevel %></td>
+                    <td><%= new Date(acc.createdAt).toLocaleString() %></td>
+                    <td><%= acc.lastLoginAt ? new Date(acc.lastLoginAt).toLocaleString() : '—' %></td>
+                    <td><%= acc.score %></td>
+                    <td>
+                      <%= acc.solvedCount %> solved
+                      <% if (acc.solved.length > 0) { %>
+                        <details class="solved-details">
+                          <summary>What they solved</summary>
+                          <ul class="solved-list">
+                            <% acc.solved.forEach(function(s) { %>
+                              <li>
+                                <span class="diff-dot diff-<%= s.difficulty %>"></span>
+                                <%= s.title %>
+                                <span class="solved-cat">[<%= s.category %>]</span>
+                                <span class="solved-pts">+<%= s.points %></span>
+                              </li>
+                            <% }); %>
+                          </ul>
+                        </details>
+                      <% } %>
+                    </td>
+                  </tr>
+                <% }); %>
+              </tbody>
+            </table>
+          </div>
+        <% } %>
+      <% } %>
+    </div>
+  </div>
+</body>
+</html>

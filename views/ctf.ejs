@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>F1 StackMind — Capture The Flag</title>
+  <link rel="stylesheet" href="/style.css">
+  <script src="/theme.js"></script>
+</head>
+<body>
+  <button id="themeToggle" class="theme-toggle" aria-label="Toggle theme"></button>
+  <div class="container container-wide">
+    <div class="card">
+      <div class="ctf-header">
+        <h1F1 StackMind — Capture The Flag</h1>
+        <a href="/dashboard" class="btn btn-small">Dashboard</a>
+      </div>
+
+      <div class="ctf-stats">
+        <div class="stat"><span class="stat-num"><%= solvedCount %>/<%= totalChallenges %></span><span class="stat-label">Solved</span></div>
+        <div class="stat"><span class="stat-num"><%= score %></span><span class="stat-label">Points</span></div>
+        <div class="stat"><span class="stat-num"><%= totalPoints %></span><span class="stat-label">Max Points</span></div>
+      </div>
+
+      <div class="category-filter">
+        <span class="filter-label">Category:</span>
+        <a href="/ctf" class="filter-chip <%= category === 'All' ? 'active' : '' %>">All</a>
+        <% categories.forEach(function(cat) { %>
+          <a
+            href="/ctf?category=<%= encodeURIComponent(cat) %>"
+            class="filter-chip <%= category === cat ? 'active' : '' %>"
+          ><%= cat %></a>
+        <% }); %>
+      </div>
+
+      <div class="ctf-groups">
+        <% groups.forEach(function(group) { %>
+          <div class="ctf-group">
+            <h2 class="group-title group-<%= group.difficulty %>">
+              <%= group.difficulty.charAt(0).toUpperCase() + group.difficulty.slice(1) %>
+            </h2>
+            <div class="challenge-grid">
+              <% group.challenges.forEach(function(ch) { %>
+                <a href="/ctf/<%= ch.id %>" class="challenge-card <%= ch.solved ? 'solved' : '' %>">
+                  <div class="challenge-diff diff-<%= ch.difficulty %>"><%= ch.points %> pts</div>
+                  <div class="challenge-title"><%= ch.title %><% if (ch.hasFile) { %> <span class="file-icon" title="Downloadable file">📎</span><% } %></div>
+                  <div class="challenge-status"><%= ch.solved ? 'SOLVED' : 'UNSOLVED' %></div>
+                </a>
+              <% }); %>
+            </div>
+          </div>
+        <% }); %>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

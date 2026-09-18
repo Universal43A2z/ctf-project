@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>F1 StackMind — <%= challenge.title %></title>
+  <link rel="stylesheet" href="/style.css">
+  <script src="/theme.js"></script>
+</head>
+<body>
+  <button id="themeToggle" class="theme-toggle" aria-label="Toggle theme"></button>
+  <div class="container container-wide">
+    <div class="card">
+      <div class="ctf-header">
+        <h1>F1 StackMind — <%= challenge.title %></h1>
+        <a href="/ctf" class="btn btn-small">Back to CTF</a>
+      </div>
+
+      <p class="challenge-meta">
+        <span class="badge diff-<%= challenge.difficulty %>"><%= challenge.difficulty %></span>
+        <span class="badge badge-points"><%= challenge.points %> points</span>
+        <span class="badge badge-category"><%= challenge.category %></span>
+        <% if (solved) { %>
+          <span class="badge badge-solved">SOLVED</span>
+        <% } %>
+      </p>
+
+      <% if (error) { %>
+        <div class="alert error"><%= error %></div>
+      <% } %>
+      <% if (success) { %>
+        <div class="alert success"><%= success %></div>
+      <% } %>
+
+      <div class="challenge-body">
+        <h3>Description</h3>
+        <p><%= challenge.description %></p>
+
+        <% if (challenge.ciphertext) { %>
+          <h3>Data</h3>
+          <code class="ciphertext"><%= challenge.ciphertext %></code>
+        <% } %>
+
+        <% if (challenge.file) { %>
+          <h3>Attached File</h3>
+          <div class="file-download">
+            <span class="file-name">📎 <%= challenge.file.name %></span>
+            <span class="file-size">(<%= challenge.file.size %> bytes)</span>
+            <a href="/ctf/<%= challenge.id %>/download" class="btn btn-small">Download file</a>
+          </div>
+        <% } %>
+      </div>
+
+      <details class="hint-box">
+        <summary>Show Hint</summary>
+        <p><%= challenge.hint %></p>
+      </details>
+
+      <% if (!solved) { %>
+        <form method="POST" action="/ctf/<%= challenge.id %>" autocomplete="off">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <div class="field">
+            <label for="flag">Submit Flag</label>
+            <input
+              type="text"
+              id="flag"
+              name="flag"
+              placeholder="flag{...}"
+              required
+              autocomplete="off"
+              spellcheck="false"
+            >
+          </div>
+          <button type="submit" class="btn">Submit Flag</button>
+        </form>
+      <% } else { %>
+        <div class="solved-note">
+          You earned <%= challenge.points %> points for solving this challenge.
+        </div>
+      <% } %>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>F1 StackMind — Dashboard</title>
+  <link rel="stylesheet" href="/style.css">
+  <script src="/theme.js"></script>
+</head>
+<body>
+  <button id="themeToggle" class="theme-toggle" aria-label="Toggle theme"></button>
+  <div class="container container-wide">
+    <div class="card">
+      <div class="ctf-header">
+        <h1F1 StackMind — Dashboard</h1>
+        <a href="/ctf" class="btn btn-small btn-ctf">Play CTF</a>
+      </div>
+
+      <p class="welcome">Welcome back, <strong><%= email %></strong>!</p>
+      <p class="info dash-profile">
+        Year Level: <%= yearLevel %> &middot; Member since <%= memberSince ? new Date(memberSince).toLocaleDateString() : '—' %> &middot; Last login <%= lastLoginAt ? new Date(lastLoginAt).toLocaleString() : '—' %>
+      </p>
+
+      <div class="ctf-stats">
+        <div class="stat"><span class="stat-num"><%= solvedCount %>/<%= totalChallenges %></span><span class="stat-label">Solved</span></div>
+        <div class="stat"><span class="stat-num"><%= score %></span><span class="stat-label">Points</span></div>
+        <div class="stat"><span class="stat-num"><%= completedPct %>%</span><span class="stat-label">Progress</span></div>
+      </div>
+
+      <div class="dash-panel">
+        <h2 class="dash-panel-title">Your mission</h2>
+        <p class="dash-note">
+          Welcome to the Cyber CTF series! Every challenge you crack earns points —
+          solve enough of them and climb the leaderboard to prove you're the best
+          hacker in the class. Progress is saved automatically, so jump in whenever
+          you're ready. Have fun, and may the flags be with you.
+        </p>
+        <ol class="dash-steps">
+          <li>Browse the challenge board and pick something that looks fun.</li>
+          <li>Read the description, peek at the hint if you get stuck, and hunt for the flag.</li>
+          <li>Submit the flag as <code>flag{...}</code> to unlock the points.</li>
+        </ol>
+      </div>
+
+      <div class="dash-panel">
+        <h2 class="dash-panel-title">Recent flags</h2>
+        <% if (recentSolves.length > 0) { %>
+          <ul class="dash-recents">
+            <% recentSolves.forEach(function(s) { %>
+              <li>
+                <span class="diff-dot diff-<%= s.difficulty %>"></span>
+                <span><%= s.title %></span>
+                <span class="recent-cat"><%= s.category %></span>
+                <span class="recent-pts">+<%= s.points %></span>
+              </li>
+            <% }); %>
+          </ul>
+        <% } else { %>
+          <p class="info">No flags captured yet &mdash; head to the <a href="/ctf">CTF board</a> and crack your first challenge!</p>
+        <% } %>
+        <p class="info dash-footnote"><%= solvedCount %> of <%= totalChallenges %> challenges solved &middot; <%= score %> / <%= totalPoints %> points earned.</p>
+      </div>
+
+      <form method="POST" action="/logout">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <button type="submit" class="btn btn-danger">Logout</button>
+      </form>
+    </div>
+  </div>
+</body>
+</html>
